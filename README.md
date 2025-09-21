@@ -87,6 +87,94 @@ For ease of processing with the included parsing script, the files have been reo
 
 - This flat structure is expected by `parse_crops3d_to_fiftyone.py`
 
+### Flattening Script
+
+Use this Python script to automatically flatten the directory structure after extracting the dataset:
+
+```python
+#!/usr/bin/env python3
+"""
+Script to flatten the Crops3D directory structure.
+Prepends directory names to filenames and moves all PLY files to the current directory.
+"""
+
+import os
+import shutil
+from pathlib import Path
+
+def flatten_crops3d_directory(source_dir="Crops3D/Crops3D", target_dir="."):
+    """
+    Flatten the Crops3D directory structure by prepending crop names to filenames.
+    
+    Args:
+        source_dir: Path to the Crops3D/Crops3D directory containing crop subdirectories
+        target_dir: Directory where flattened files will be placed (default: current directory)
+    """
+    source_path = Path(source_dir)
+    target_path = Path(target_dir)
+    
+    if not source_path.exists():
+        print(f"Error: Source directory '{source_dir}' not found!")
+        print("Make sure you've extracted the Crops3D.zip file first.")
+        return
+    
+    # Get all crop subdirectories
+    crop_dirs = [d for d in source_path.iterdir() if d.is_dir()]
+    
+    if not crop_dirs:
+        print(f"No subdirectories found in {source_dir}")
+        return
+    
+    total_files = 0
+    moved_files = 0
+    
+    print(f"Found {len(crop_dirs)} crop directories")
+    print("Starting to flatten directory structure...")
+    
+    for crop_dir in crop_dirs:
+        crop_name = crop_dir.name
+        ply_files = list(crop_dir.glob("*.ply"))
+        
+        print(f"\nProcessing {crop_name}: {len(ply_files)} files")
+        
+        for ply_file in ply_files:
+            # Create new filename with crop name prepended
+            new_filename = f"{crop_name}-{ply_file.name}"
+            target_file = target_path / new_filename
+            
+            # Copy or move the file
+            if target_file.exists():
+                print(f"  Skipping {new_filename} (already exists)")
+            else:
+                shutil.copy2(ply_file, target_file)
+                moved_files += 1
+                print(f"  Copied: {ply_file.name} -> {new_filename}")
+            
+            total_files += 1
+    
+    print(f"\n{'='*50}")
+    print(f"Flattening complete!")
+    print(f"Total files processed: {total_files}")
+    print(f"Files copied: {moved_files}")
+    print(f"Files skipped (already exist): {total_files - moved_files}")
+    
+    # Verify the result
+    ply_count = len(list(target_path.glob("*.ply")))
+    print(f"\nTotal PLY files in {target_dir}: {ply_count}")
+    
+    # Show sample of files for each crop type
+    print("\nSample files per crop type:")
+    for crop_dir in crop_dirs:
+        crop_name = crop_dir.name
+        crop_files = list(target_path.glob(f"{crop_name}-*.ply"))
+        if crop_files:
+            print(f"  {crop_name}: {len(crop_files)} files")
+
+if __name__ == "__main__":
+    # Run the flattening process
+    flatten_crops3d_directory()
+```
+
 ## Usage with FiftyOne
 
 The repository includes a parsing script `parse_crops3d_to_fiftyone.py` that:
@@ -106,10 +194,29 @@ The repository includes a parsing script `parse_crops3d_to_fiftyone.py` that:
 wget https://springernature.figshare.com/ndownloader/files/50027964 -O Crops3D.zip
 unzip Crops3D.zip
 
-# 2. Reorganize files (flatten directory structure with renamed files)
-# Move all PLY files to top level with directory name prepended
+# 2. Flatten the directory structure
+# Save the flattening script from above as flatten_crops3d.py, then run:
+python flatten_crops3d.py
 
-# 3. Run the parsing script
+# Alternative: Run the flattening code directly
+python -c "
+from pathlib import Path
+import shutil
+
+source = Path('Crops3D/Crops3D')
+if source.exists():
+    for crop_dir in source.iterdir():
+        if crop_dir.is_dir():
+            for ply in crop_dir.glob('*.ply'):
+                new_name = f'{crop_dir.name}-{ply.name}'
+                shutil.copy2(ply, new_name)
+                print(f'Copied: {new_name}')
+    print('Flattening complete!')
+else:
+    print('Crops3D/Crops3D directory not found!')
+"
+
+# 3. Run the parsing script to create FiftyOne dataset
 python parse_crops3d_to_fiftyone.py
 
 # 4. Launch FiftyOne to visualize
